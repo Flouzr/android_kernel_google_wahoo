@@ -1,20 +1,29 @@
-name: "Build CR Droid 15 kernel on Taimen."              # Description of the workflow.
+name: Build CR Droid 15 kernel for Taimen
 on:
-  push:
-    branches: "15.0"                                  # Branch to build.
-  workflow_dispatch:                                  # Allow to manually trigger workflow.
-jobs:
-  build:
-    name: "Build CR Droid 15 kernel"
-    runs-on: ubuntu-latest
-    steps:
-    - name: "Checkout kernel source"                  # Clone the kernel source.
-      uses: actions/checkout@v2
-    - name: "Android kernel build"                    # Build kernel with lemniskett/android-kernel-actions.
-      uses: lemniskett/android-kernel-actions@master
-      with:
-        arch: arm64                                   # Specify arch
-        compiler: clang/11                            # Specify toolchain to use
-        defconfig: wahoo_defconfig                    # Specify defconfig to use
-        image: Image.gz-dtb                           # Specify final build file
+  workflow_dispatch:
 
+jobs:
+  Build-Kernel:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Build Kernel
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/Flouzr/android_kernel_google_wahoo
+          kernel-dir: kernel
+          kernel-branch: "15.0"
+          config: wahoo_defconfig
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          #ksu: true
+          #ksu-version: main
+          android-version: 15
+          aosp-clang-version: r536225
+          disable-lto: true
+          #anykernel3: true
