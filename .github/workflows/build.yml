@@ -1,189 +1,21 @@
-name: Build Script
-permissions:
-  contents: write
-  actions: write 
+name: Build crDroid 15.0 - Pixel 2 XL
 
 on:
-  workflow_call:
-    inputs:
-      android_version:
-        required: true
-        type: string
-      kernel_version:
-        required: true
-        type: string
-      sub_level:
-        required: true
-        type: string
-      os_patch_level:
-        required: true
-        type: string
-      revision:
-        required: false
-        type: string
+  workflow_dispatch:
 
 jobs:
-  build-gki:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
-
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-22.04
     steps:
-      - name: Maximize Build Space
-        uses: AdityaGarg8/remove-unwanted-software@v5
-        with:
-          remove-dotnet: 'true'          # Frees ~2 GB
-          remove-android: 'true'         # Frees ~9 GB
-          remove-haskell: 'true'         # Frees ~5.2 GB
-          remove-codeql: 'true'          # Frees ~5.4 GB
-          remove-docker-images: 'true'   # Frees ~3.2 GB
-          remove-large-packages: 'true'  # Frees ~3.1 GB
-          remove-swapfile: 'true'        # Frees ~4 GB
-          remove-cached-tools: 'false'   # Avoid unless confirmed safe
-          verbose: 'true'                # Enable detailed logging
-          
-      - name: Set CONFIG Environment Variable
-        run: |
-          # Set CONFIG dynamically based on inputs values
-          CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.sub_level }}"
-
-          # Set CONFIG as an environment variable for future steps
-          echo "CONFIG=$CONFIG" >> $GITHUB_ENV
-
-          echo "CONFIG set to: $CONFIG"
-
-      - name: Install ccache
-        run: sudo apt update && sudo apt install -y ccache
-
-      - name: Set up ccache
-        run: |
-          mkdir -p ~/.cache/bazel
-          ccache --version
-          ccache --max-size=2G
-          ccache --set-config=compression=true
-          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-
-      - name: Download toolchain
-        run: |
-          AOSP_MIRROR=https://android.googlesource.com
-          BRANCH=main-kernel-build-2024
-          git clone $AOSP_MIRROR/kernel/prebuilts/build-tools -b $BRANCH --depth 1 kernel-build-tools
-          git clone $AOSP_MIRROR/platform/system/tools/mkbootimg -b $BRANCH --depth 1 mkbootimg
-
-      - name: Set environment variables
-        run: |
-          echo "AVBTOOL=$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/bin/avbtool" >> $GITHUB_ENV
-          echo "MKBOOTIMG=$GITHUB_WORKSPACE/mkbootimg/mkbootimg.py" >> $GITHUB_ENV
-          echo "UNPACK_BOOTIMG=$GITHUB_WORKSPACE/mkbootimg/unpack_bootimg.py" >> $GITHUB_ENV
-
-      - name: Install Repo
-        run: |
-          mkdir -p ./git-repo
-          echo "Downloading repo tool..."
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ./git-repo/repo
-          chmod a+rx ./git-repo/repo
-          echo "REPO=$GITHUB_WORKSPACE/./git-repo/repo" >> $GITHUB_ENV
-
-      - name: Check Disk Space Before Sync
-        run: |
-          echo "Disk space before kernel source sync:"
-          df -h
-
-      - name: Initialize and Sync Kernel Source
-        run: |
-          echo "Creating folder for configuration: $CONFIG..."
-          mkdir -p "$CONFIG"
-          cd "$CONFIG"
-          echo "Initializing and syncing kernel source..."
-          $REPO init --depth=1 https://github.com/Flouzr/android_kernel_google_wahoo
-          $REPO --version
-          $REPO --trace sync -c -j$(nproc --all) --no-tags --fail-fast
-
-      - name: Add Configuration Settings
-        run: |
-          echo "Changing to configuration directory: $CONFIG..."
-          cd "$CONFIG"
-          echo "Adding configuration settings to wahoo_defconfig..."
-
-          # Add KSU configuration settings
-          echo "CONFIG_HAVE_HW_BREAKPOINT=y" >> ./common/arch/arm64/configs/wahoo_defconfig
-          echo "CONFIG_KALLSYMS=y" >> ./common/arch/arm64/configs/wahoo_defconfig
-
-          # Remove check_defconfig
-          sed -i 's/check_defconfig//' ./common/build.config.gki
-
-      - name: Change Kernel Name
-        run: |
-          cd "$CONFIG"
-
-          # modify UTS_VERSION
-          perl -pi -e 's{UTS_VERSION="\$\(echo \$UTS_VERSION \$CONFIG_FLAGS \$TIMESTAMP \| cut -b -\$UTS_LEN\)"}{UTS_VERSION="#1 SMP PREEMPT Sun Apr 20 04:20:00 UTC 2025"}' ./common/scripts/mkcompile_h
-          
-          sed -i '$s|echo "\$res"|echo "\$res-vBeans\"|' ./common/scripts/setlocalversion
-          if [ -f "build/build.sh" ]; then
-            sed -i 's/-dirty//' ./common/scripts/setlocalversion
-          else
-            sed -i 's/build-timestamp = $(or $(KBUILD_BUILD_TIMESTAMP), $(build-timestamp-auto))/build-timestamp = "Sun Apr 20 04:20:00 UTC 2025"/' ./common/init/Makefile
-            sed -i '/^[[:space:]]*"protected_exports_list"[[:space:]]*:[[:space:]]*"android\/abi_gki_protected_exports_aarch64",$/d' ./common/BUILD.bazel
-            rm -rf ./common/android/abi_gki_protected_exports_*
-            sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
-            sed -E -i "/^CONFIG_LOCALVERSION=/ s/(.*)\"/\\1-vBeans\"/" ./common/arch/arm64/configs/gki_defconfig
-          fi
-
       - name: Build
-        run : |
-          set -e
-          set -x
-          cd "$CONFIG"
-          echo "Building the kernel..."
-          if [ -f "build/build.sh" ]; then
-            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" || exit 1
-          else
-            tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast --lto=thin //common:kernel_aarch64_dist || exit 1
-          fi
-          ccache --show-stats
-
-      - name: Create Bootimgs Folder and Copy Images for Android 14/15
-        if: ${{ inputs.android_version == 'android14' || inputs.android_version == 'android15' }}
-        run: |
-          mkdir bootimgs
-
-          echo "Creating bootimgs folder and copying images..."
-          cp ./$CONFIG/bazel-bin/common/kernel_aarch64/Image ./bootimgs
-          cp ./$CONFIG/bazel-bin/common/kernel_aarch64/Image.lz4 ./bootimgs
-          cp ./$CONFIG/bazel-bin/common/kernel_aarch64/Image ./
-          cp ./$CONFIG/bazel-bin/common/kernel_aarch64/Image.lz4 ./
-
-          # Create gzip of the Image file
-          gzip -n -k -f -9 ./Image > ./Image.gz
-
-      - name: Android 13/14/15 boot image build script
-        if: ${{ inputs.android_version == 'android13' || inputs.android_version == 'android14' || inputs.android_version == 'android15' }}
-        run: |
-          cd bootimgs
-
-          # Create gzip of the Image file
-          gzip -n -k -f -9 ./Image > ./Image.gz
-          
-          echo "Building boot.img"
-          $MKBOOTIMG --header_version 4 --kernel Image --output boot.img
-          $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key $BOOT_SIGN_KEY_PATH
-          cp ./boot.img ../${{ inputs.android_version }}-${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.os_patch_level }}-boot.img
-                    
-      - name: Compress all img files with gzip
-        run: |
-          for image in *.img; do
-            gzip -vnf9 "$image"
-          done
-  
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: dabao1955/kernel_build_action@main
         with:
-          name: pixel2xl-kernel-${{ env.CONFIG }}
-          path: |
-            *.zip
-            *.img.gz
-            *Image*
+          kernel-url: https://github.com/Flouzr/android_kernel_google_wahoo
+          kernel-branch: "15.0"
+          config: wahoo_defconfig
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          android-version: 15
+          aosp-clang-version: clang-r547379
