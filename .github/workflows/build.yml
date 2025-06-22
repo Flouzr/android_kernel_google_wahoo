@@ -16,5 +16,5 @@ jobs:
           config: wahoo_defconfig
           arch: arm64
           aosp-gcc: true
-          android-version: 15
+          android-version: 8
           other-clang-url: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz"
