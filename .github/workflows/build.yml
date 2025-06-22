@@ -16,6 +16,5 @@ jobs:
           config: wahoo_defconfig
           arch: arm64
           aosp-gcc: false
-          android-version: 8
           other-clang-url: "https://gitlab.com/kei-space/clang/r536225.git"
           other-clang-branch: master
