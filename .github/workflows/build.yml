@@ -16,4 +16,4 @@ jobs:
           config: wahoo_defconfig
           arch: arm64
           aosp-gcc: false
-          other-clang-url: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz"
+          other-clang-url: "https://gitlab.com/kei-space/clang/r536225.git"
