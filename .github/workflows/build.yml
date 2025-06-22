@@ -1,24 +1,21 @@
-name: Build Kernel
+name: Build crDroid 15.0 - Pixel 2 XL
 
 on:
-  push:
-    branches: [ "15.0" ]
+  workflow_dispatch:
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
+  build-kernel:
+    name: Build Kernel
+    runs-on: ubuntu-22.04
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Build Kernel
-      uses: mlm-games/simple-kernel-build-action@v1.1.0
-      with:
-        KERNEL_CLONE_CMD: 'git clone https://github.com/Flouzr/android_kernel_google_wahoo -b 15.0' # PSA: directory and depth=1 are added automatically!
-        KERNEL_CONFIG: 'wahoo_defconfig'
-        ARCH: 'arm64'
-        TOOLCHAIN_CLONE_CMD: 'git clone https://github.com/djb77/aarch64-linux-android-4.9 ./toolchain/gcc'
-        ENABLE_KSU: 'false'
-        ENABLE_CCACHE: 'true'
+      - name: Build
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/Flouzr/android_kernel_google_wahoo
+          kernel-branch: "15.0"
+          config: wahoo_defconfig
+          arch: arm64
+          aosp-gcc: false
+          other-gcc32-url: "https://github.com/djb77/aarch64-linux-android-4.9.git"
+          android-version: 8
+          other-clang-url: "https://gitlab.com/kei-space/clang/r536225.git"
