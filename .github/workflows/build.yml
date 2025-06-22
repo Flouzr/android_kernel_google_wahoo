@@ -2,7 +2,7 @@ name: Build Kernel
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "15.0" ]
 
 jobs:
   build:
