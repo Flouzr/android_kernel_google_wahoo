@@ -1,20 +1,30 @@
-name: Build crDroid 15.0 - Pixel 2 XL
+name: Build Kernel
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
-  build-kernel:
-    name: Build Kernel
-    runs-on: ubuntu-22.04
+  build:
+
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Build
-        uses: dabao1955/kernel_build_action@main
-        with:
-          kernel-url: https://github.com/Flouzr/android_kernel_google_wahoo
-          kernel-branch: "15.0"
-          config: wahoo_defconfig
-          arch: arm64
-          aosp-gcc: true
-          android-version: 8
-          other-clang-url: "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r536225.tar.gz"
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Build Kernel
+      uses: mlm-games/simple-kernel-build-action@v1
+      with:
+        KERNEL_CLONE_CMD: 'git clone https://github.com/Flouzr/android_kernel_google_wahoo -b 15.0' # PSA: directory and depth=1 are added automatically!
+        KERNEL_CONFIG: 'wahoo_defconfig'
+        ARCH: 'arm64'
+        TOOLCHAIN_CLONE_CMD: 'git clone https://github.com/djb77/aarch64-linux-android-4.9 ./toolchain/gcc'
+        ENABLE_KSU: 'false'
+        ENABLE_CCACHE: 'true'
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: kernel-build
+        path: 'kernel_source/flashable-anykernel.zip' # Always named flashable-anykernel.zip
